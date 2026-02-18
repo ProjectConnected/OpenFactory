@@ -1,0 +1,65 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file:
+      - .env
+    environment:
+      - OPENFACTORY_DB_PATH=/data/openfactory.db
+      - OPENFACTORY_API_KEY_FILE=/secrets/openfactory_api_key.txt
+    volumes:
+      - /srv/odyssey/data:/data
+      - /srv/odyssey/secrets:/secrets:ro
+    ports:
+      - "${OPENFACTORY_BIND_IP}:8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - of_internal
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    env_file:
+      - .env
+    environment:
+      - OPENFACTORY_DB_PATH=/data/openfactory.db
+      - OPENFACTORY_WORKSPACES_DIR=/workspaces
+      - GITHUB_TOKEN_FILE=/secrets/github_pat.txt
+      - TEMPLATE_DIR=/app/templates/python-fastapi
+      - REPO_SSH_URL=git@github.com:ProjectConnected/OpenFactory.git
+      - BASE_BRANCH=main
+    volumes:
+      - /srv/odyssey/data:/data
+      - /srv/odyssey/workspaces:/workspaces
+      - /srv/odyssey/secrets:/secrets:ro
+      - ./templates:/app/templates:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      - of_internal
+      - of_egress
+
+networks:
+  of_internal:
+    internal: true
+  of_egress: {}
