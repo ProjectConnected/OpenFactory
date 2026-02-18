@@ -7,12 +7,15 @@ services:
       - .env
     environment:
       - OPENFACTORY_DB_PATH=/data/openfactory.db
-      - OPENFACTORY_API_KEY_FILE=/secrets/openfactory_api_key.txt
+      - OPENFACTORY_API_KEY_FILE=/run/secrets/openfactory_api_key
+    user: "${HOST_UID}:${HOST_GID}"
     volumes:
       - /srv/odyssey/data:/data
-      - /srv/odyssey/secrets:/secrets:ro
-    ports:
-      - "${OPENFACTORY_BIND_IP}:8080:8080"
+    secrets:
+      - source: openfactory_api_key
+        target: openfactory_api_key
+    command: ["uvicorn","api.main:app","--host","0.0.0.0","--port","8080"]
+    network_mode: host
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
@@ -21,13 +24,11 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8080/health\", timeout=2)"]
       interval: 15s
       timeout: 5s
       retries: 10
     restart: unless-stopped
-    networks:
-      - of_internal
 
   worker:
     build:
@@ -38,15 +39,16 @@ services:
     environment:
       - OPENFACTORY_DB_PATH=/data/openfactory.db
       - OPENFACTORY_WORKSPACES_DIR=/workspaces
-      - GITHUB_TOKEN_FILE=/secrets/github_pat.txt
+      - GITHUB_TOKEN_FILE=/run/secrets/github_pat
       - TEMPLATE_DIR=/app/templates/python-fastapi
-      - REPO_SSH_URL=git@github.com:ProjectConnected/OpenFactory.git
       - BASE_BRANCH=main
     volumes:
       - /srv/odyssey/data:/data
       - /srv/odyssey/workspaces:/workspaces
-      - /srv/odyssey/secrets:/secrets:ro
       - ./templates:/app/templates:ro
+    secrets:
+      - source: github_pat
+        target: github_pat
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=128m
@@ -58,6 +60,12 @@ services:
     networks:
       - of_internal
       - of_egress
+
+secrets:
+  github_pat:
+    file: /srv/odyssey/secrets/github_pat.txt
+  openfactory_api_key:
+    file: /srv/odyssey/secrets/openfactory_api_key.txt
 
 networks:
   of_internal:

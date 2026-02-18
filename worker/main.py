@@ -10,7 +10,7 @@ import requests
 
 DB_PATH = os.getenv("OPENFACTORY_DB_PATH", "/data/openfactory.db")
 WORKSPACES = Path(os.getenv("OPENFACTORY_WORKSPACES_DIR", "/workspaces"))
-TOKEN_FILE = os.getenv("GITHUB_TOKEN_FILE", "/secrets/github_pat.txt")
+TOKEN_FILE = os.getenv("GITHUB_TOKEN_FILE", "/run/secrets/github_pat")
 TEMPLATE_DIR = Path(os.getenv("TEMPLATE_DIR", "/app/templates/python-fastapi"))
 BASE_BRANCH = os.getenv("BASE_BRANCH", "main")
 
@@ -26,7 +26,12 @@ def conn():
 
 
 def run(cmd, cwd=None):
-    return subprocess.run(cmd, cwd=cwd, check=True, text=True, capture_output=True)
+    r = subprocess.run(cmd, cwd=cwd, check=False, text=True, capture_output=True)
+    if r.returncode != 0:
+        err = (r.stderr or r.stdout or '').strip().replace('\n', ' | ')
+        raise RuntimeError(f"cmd_failed rc={r.returncode} cmd={cmd} err={err[:1200]}")
+    return r
+
 
 
 def update_job(job_id, **fields):
@@ -106,7 +111,9 @@ def process(job_id, payload):
         shutil.rmtree(ws)
     ws.mkdir(parents=True, exist_ok=True)
 
-    run(["git", "clone", f"git@github.com:{owner}/{repo}.git", str(ws)])
+    token = read_token()
+    repo_https = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
+    run(["git", "clone", repo_https, str(ws)])
     run(["git", "checkout", "-b", branch], cwd=ws)
 
     apply_template(ws)
@@ -123,6 +130,7 @@ def process(job_id, payload):
     run(["git", "config", "user.email", "openfactory-bot@users.noreply.github.com"], cwd=ws)
     run(["git", "add", "-A"], cwd=ws)
     run(["git", "commit", "-m", "OpenFactory: apply template + task"], cwd=ws)
+    run(["git", "remote", "set-url", "origin", repo_https], cwd=ws)
     run(["git", "push", "-u", "origin", branch], cwd=ws)
 
     pr_url, ci = create_pr_and_wait(owner, repo, branch, "OpenFactory: scaffold + task", task)
