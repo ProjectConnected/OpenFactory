@@ -1,0 +1,102 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server","--save","","--appendonly","no"]
+    networks: [openfactory]
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 200
+    healthcheck:
+      test: ["CMD","redis-cli","ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    init: true
+    user: "${HOST_UID}:${HOST_GID}"
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - DB_PATH=${DB_PATH}
+      - SECRETS_DIR=${SECRETS_DIR}
+      - OPENFACTORY_API_KEY_FILE=${SECRETS_DIR}/openfactory_api_key.txt
+      - GITHUB_OWNER=${GITHUB_OWNER}
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - /srv/odyssey/data:/data
+      - /srv/odyssey/secrets:/secrets:ro
+    ports:
+      - "${OPENFACTORY_BIND_IP:-0.0.0.0}:8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [openfactory]
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 300
+    healthcheck:
+      test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health').read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    init: true
+    user: "${HOST_UID}:${HOST_GID}"
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - DB_PATH=${DB_PATH}
+      - WORKSPACES_ROOT=${WORKSPACES_ROOT}
+      - SECRETS_DIR=${SECRETS_DIR}
+      - OPENFACTORY_API_KEY_FILE=${SECRETS_DIR}/openfactory_api_key.txt
+      - GITHUB_TOKEN_FILE=${SECRETS_DIR}/github_pat.txt
+      - GITHUB_OWNER=${GITHUB_OWNER}
+      - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME}
+      - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL}
+      - CODER_MODE=scaffold_only
+      - MAX_FIX_LOOPS=0
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - /srv/odyssey/data:/data
+      - /srv/odyssey/workspaces:/workspaces
+      - /srv/odyssey/secrets:/secrets:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks: [openfactory]
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 800
+    restart: unless-stopped
+
+networks:
+  openfactory:
+    driver: bridge
