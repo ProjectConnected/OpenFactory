@@ -8,6 +8,7 @@ services:
     environment:
       - OPENFACTORY_DB_PATH=/data/openfactory.db
       - OPENFACTORY_API_KEY_FILE=/run/secrets/openfactory_api_key
+      - OPENFACTORY_ARTIFACT_ROOT=/data/openfactory/jobs
     user: "${HOST_UID}:${HOST_GID}"
     volumes:
       - /srv/odyssey/data:/data
@@ -46,6 +47,12 @@ services:
       - OPENFACTORY_GIT_EMAIL=openfactory-bot@users.noreply.github.com
       - OPENFACTORY_COAUTHOR_NAME=TheLegend82
       - OPENFACTORY_COAUTHOR_EMAIL=190782556+TheLegend82@users.noreply.github.com
+      - OPENFACTORY_ARTIFACT_ROOT=/data/openfactory/jobs
+      - OPENFACTORY_REQUIRED_CHECK=tests
+      - OPENFACTORY_MODEL_PROVIDER_BASE_URL=https://openrouter.ai/api/v1
+      - OPENFACTORY_MODEL_NAME=openrouter/auto
+      - OPENFACTORY_MODEL_TEMPERATURE=0
+      - OPENFACTORY_MODEL_MAX_TOKENS=4096
     volumes:
       - /srv/odyssey/data:/data
       - /srv/odyssey/workspaces:/workspaces
@@ -53,6 +60,7 @@ services:
     secrets:
       - source: github_pat
         target: github_pat
+    user: "${HOST_UID}:${HOST_GID}"
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=128m
