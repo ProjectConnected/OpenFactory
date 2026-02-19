@@ -15,6 +15,9 @@ services:
     secrets:
       - source: openfactory_api_key
         target: openfactory_api_key
+        uid: "${HOST_UID}"
+        gid: "${HOST_GID}"
+        mode: 0440
     command: ["uvicorn","api.main:app","--host","0.0.0.0","--port","8080"]
     network_mode: host
     read_only: true
@@ -60,6 +63,9 @@ services:
     secrets:
       - source: github_pat
         target: github_pat
+        uid: "${HOST_UID}"
+        gid: "${HOST_GID}"
+        mode: 0440
     user: "${HOST_UID}:${HOST_GID}"
     read_only: true
     tmpfs:

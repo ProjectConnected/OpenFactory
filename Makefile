@@ -19,8 +19,8 @@ doctor:
 	./scripts/doctor.sh
 
 test:
-	$(COMPOSE) exec -T api python -m py_compile api/main.py
-	$(COMPOSE) exec -T worker python -m py_compile worker/main.py
+	$(COMPOSE) exec -T api python -B -m py_compile api/main.py
+	$(COMPOSE) exec -T worker python -B -m py_compile worker/main.py
 
 integration:
 	curl -fsS http://127.0.0.1:8080/openapi.json | grep -q '"/v1/jobs"'
