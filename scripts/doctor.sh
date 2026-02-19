@@ -25,10 +25,16 @@ else
   pass "no service in restarting state"
 fi
 
-if curl -fsS "http://127.0.0.1:8080/openapi.json" | grep -q '"/v1/jobs"'; then
+openapi="$(curl -fsS "http://127.0.0.1:8080/openapi.json" || true)"
+if echo "$openapi" | grep -q '"/v1/jobs"'; then
   pass "openapi includes /v1/jobs"
 else
   fail "openapi missing /v1/jobs"
+fi
+if echo "$openapi" | grep -q '"/v1/jobs/{job_id}/cancel"' && echo "$openapi" | grep -q '"/v1/jobs/{job_id}/artifacts"'; then
+  pass "openapi includes cancel + artifacts endpoints"
+else
+  fail "openapi missing cancel/artifacts endpoints"
 fi
 
 if $COMPOSE exec -T worker test -s /run/secrets/github_pat; then
@@ -41,6 +47,12 @@ if $COMPOSE exec -T worker sh -lc 'TOKEN=$(cat /run/secrets/github_pat); curl -f
   pass "github auth succeeded"
 else
   fail "github auth failed"
+fi
+
+if $COMPOSE exec -T worker sh -lc 'test -n "$OPENFACTORY_MODEL_PROVIDER_BASE_URL" && test -n "$OPENFACTORY_MODEL_NAME" && test -n "$OPENFACTORY_MODEL_TEMPERATURE" && test -n "$OPENFACTORY_MODEL_MAX_TOKENS"'; then
+  pass "model config present for fail-fast"
+else
+  fail "model config env missing"
 fi
 
 ufw_out="$(sudo ufw status numbered || true)"
