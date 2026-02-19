@@ -60,6 +60,12 @@ else
   fail "model config env missing"
 fi
 
+if grep -RIlE 'gh[pousr]_[A-Za-z0-9_]+' /srv/odyssey/data/openfactory/jobs 2>/dev/null | head -n 1 | grep -q .; then
+  fail "potential token leak found in artifacts (run scripts/redact_artifacts.sh)"
+else
+  pass "artifact logs pass token leak scan"
+fi
+
 ufw_out="$(sudo ufw status numbered || true)"
 if echo "$ufw_out" | grep -q '22/tcp' && echo "$ufw_out" | grep -q '8080/tcp' && ! echo "$ufw_out" | grep -q '8080/tcp.*Anywhere'; then
   pass "ufw has scoped 22/tcp and 8080/tcp rules"

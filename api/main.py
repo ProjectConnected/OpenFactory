@@ -4,6 +4,7 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
@@ -29,6 +30,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS jobs (
           id TEXT PRIMARY KEY,
           trace_id TEXT,
+          stage TEXT,
           status TEXT NOT NULL,
           payload_json TEXT NOT NULL,
           model_json TEXT,
@@ -40,11 +42,11 @@ def init_db():
         )
         """
     )
-    # back-compat migrations
     cols = {r[1] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()}
     for col, ddl in {
         "trace_id": "ALTER TABLE jobs ADD COLUMN trace_id TEXT",
         "model_json": "ALTER TABLE jobs ADD COLUMN model_json TEXT",
+        "stage": "ALTER TABLE jobs ADD COLUMN stage TEXT",
     }.items():
         if col not in cols:
             conn.execute(ddl)
@@ -92,12 +94,12 @@ def create_job(payload: JobCreate, x_openfactory_key: str | None = Header(defaul
     ts = now_iso()
     conn = get_conn()
     conn.execute(
-        "INSERT INTO jobs (id,trace_id,status,payload_json,created_at,updated_at) VALUES (?,?,?,?,?,?)",
-        (jid, trace_id, "queued", json.dumps(payload.model_dump()), ts, ts),
+        "INSERT INTO jobs (id,trace_id,stage,status,payload_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
+        (jid, trace_id, "queued", "queued", json.dumps(payload.model_dump()), ts, ts),
     )
     conn.commit()
     conn.close()
-    return {"id": jid, "trace_id": trace_id, "status": "queued"}
+    return {"id": jid, "trace_id": trace_id, "stage": "queued", "status": "queued"}
 
 
 @app.get("/v1/jobs/{job_id}")
@@ -117,6 +119,7 @@ def get_job(job_id: str, x_openfactory_key: str | None = Header(default=None)):
     return {
         "id": row["id"],
         "trace_id": row["trace_id"],
+        "stage": row["stage"],
         "status": row["status"],
         "pr_url": row["pr_url"],
         "ci_status": row["ci_status"],
@@ -138,7 +141,7 @@ def cancel_job(job_id: str, x_openfactory_key: str | None = Header(default=None)
     if row["status"] in {"done", "failed", "ci_failed", "cancelled"}:
         conn.close()
         return {"id": job_id, "status": row["status"]}
-    conn.execute("UPDATE jobs SET status=?, updated_at=? WHERE id=?", ("cancel_requested", now_iso(), job_id))
+    conn.execute("UPDATE jobs SET status=?, stage=?, updated_at=? WHERE id=?", ("cancel_requested", "cancel_requested", now_iso(), job_id))
     conn.commit()
     conn.close()
     return {"id": job_id, "status": "cancel_requested"}
