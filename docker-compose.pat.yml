@@ -42,6 +42,10 @@ services:
       - GITHUB_TOKEN_FILE=/run/secrets/github_pat
       - TEMPLATE_DIR=/app/templates/python-fastapi
       - BASE_BRANCH=main
+      - OPENFACTORY_GIT_NAME=OpenFactory Bot
+      - OPENFACTORY_GIT_EMAIL=openfactory-bot@users.noreply.github.com
+      - OPENFACTORY_COAUTHOR_NAME=TheLegend82
+      - OPENFACTORY_COAUTHOR_EMAIL=190782556+TheLegend82@users.noreply.github.com
     volumes:
       - /srv/odyssey/data:/data
       - /srv/odyssey/workspaces:/workspaces

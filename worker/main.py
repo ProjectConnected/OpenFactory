@@ -13,6 +13,10 @@ WORKSPACES = Path(os.getenv("OPENFACTORY_WORKSPACES_DIR", "/workspaces"))
 TOKEN_FILE = os.getenv("GITHUB_TOKEN_FILE", "/run/secrets/github_pat")
 TEMPLATE_DIR = Path(os.getenv("TEMPLATE_DIR", "/app/templates/python-fastapi"))
 BASE_BRANCH = os.getenv("BASE_BRANCH", "main")
+BOT_NAME = os.getenv("OPENFACTORY_GIT_NAME", "OpenFactory Bot")
+BOT_EMAIL = os.getenv("OPENFACTORY_GIT_EMAIL", "openfactory-bot@users.noreply.github.com")
+COAUTHOR_NAME = os.getenv("OPENFACTORY_COAUTHOR_NAME", "")
+COAUTHOR_EMAIL = os.getenv("OPENFACTORY_COAUTHOR_EMAIL", "")
 
 
 def now_iso():
@@ -126,10 +130,13 @@ def process(job_id, payload):
     except Exception:
         pass
 
-    run(["git", "config", "user.name", "OpenFactory Bot"], cwd=ws)
-    run(["git", "config", "user.email", "openfactory-bot@users.noreply.github.com"], cwd=ws)
+    run(["git", "config", "user.name", BOT_NAME], cwd=ws)
+    run(["git", "config", "user.email", BOT_EMAIL], cwd=ws)
     run(["git", "add", "-A"], cwd=ws)
-    run(["git", "commit", "-m", "OpenFactory: apply template + task"], cwd=ws)
+    msg = "OpenFactory: apply template + task"
+    if COAUTHOR_NAME and COAUTHOR_EMAIL:
+        msg += f"\n\nCo-authored-by: {COAUTHOR_NAME} <{COAUTHOR_EMAIL}>"
+    run(["git", "commit", "-m", msg], cwd=ws)
     run(["git", "remote", "set-url", "origin", repo_https], cwd=ws)
     run(["git", "push", "-u", "origin", branch], cwd=ws)
 
