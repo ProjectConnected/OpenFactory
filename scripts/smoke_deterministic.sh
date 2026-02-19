@@ -8,7 +8,7 @@ OWNER="${OPENFACTORY_SMOKE_OWNER:-ProjectConnected}"
 REPO="${OPENFACTORY_SMOKE_REPO:-OpenFactorySmoke3}"
 TIMEOUT_SEC="${OPENFACTORY_SMOKE_TIMEOUT_SEC:-1800}"
 
-api_key="$($COMPOSE exec -T api sh -lc 'cat /run/secrets/openfactory_api_key' | tr -d '\r\n')"
+api_key="$($COMPOSE exec -T api sh -lc 'cat /run/secrets/openfactory_api_key.txt' | tr -d '\r\n')"
 
 submit_payload=$(cat <<JSON
 {"owner":"${OWNER}","repo":"${REPO}","task":"Deterministic smoke: create hello-world FastAPI with /health and one test; keep changes minimal and CI-safe.","private":false,"template":"python-fastapi"}

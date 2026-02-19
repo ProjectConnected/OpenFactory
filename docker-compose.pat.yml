@@ -7,17 +7,12 @@ services:
       - .env
     environment:
       - OPENFACTORY_DB_PATH=/data/openfactory.db
-      - OPENFACTORY_API_KEY_FILE=/run/secrets/openfactory_api_key
+      - OPENFACTORY_API_KEY_FILE=/run/secrets/openfactory_api_key.txt
       - OPENFACTORY_ARTIFACT_ROOT=/data/openfactory/jobs
     user: "${HOST_UID}:${HOST_GID}"
     volumes:
       - /srv/odyssey/data:/data
-    secrets:
-      - source: openfactory_api_key
-        target: openfactory_api_key
-        uid: "${HOST_UID}"
-        gid: "${HOST_GID}"
-        mode: 0440
+      - /srv/odyssey/secrets/openfactory_api_key.txt:/run/secrets/openfactory_api_key.txt:ro
     command: ["uvicorn","api.main:app","--host","0.0.0.0","--port","8080"]
     network_mode: host
     read_only: true
@@ -43,7 +38,7 @@ services:
     environment:
       - OPENFACTORY_DB_PATH=/data/openfactory.db
       - OPENFACTORY_WORKSPACES_DIR=/workspaces
-      - GITHUB_TOKEN_FILE=/run/secrets/github_pat
+      - GITHUB_TOKEN_FILE=/run/secrets/github_pat.txt
       - TEMPLATE_DIR=/app/templates/python-fastapi
       - BASE_BRANCH=main
       - OPENFACTORY_GIT_NAME=OpenFactory Bot
@@ -60,12 +55,7 @@ services:
       - /srv/odyssey/data:/data
       - /srv/odyssey/workspaces:/workspaces
       - ./templates:/app/templates:ro
-    secrets:
-      - source: github_pat
-        target: github_pat
-        uid: "${HOST_UID}"
-        gid: "${HOST_GID}"
-        mode: 0440
+      - /srv/odyssey/secrets/github_pat.txt:/run/secrets/github_pat.txt:ro
     user: "${HOST_UID}:${HOST_GID}"
     read_only: true
     tmpfs:
@@ -78,12 +68,6 @@ services:
     networks:
       - of_internal
       - of_egress
-
-secrets:
-  github_pat:
-    file: /srv/odyssey/secrets/github_pat.txt
-  openfactory_api_key:
-    file: /srv/odyssey/secrets/openfactory_api_key.txt
 
 networks:
   of_internal:

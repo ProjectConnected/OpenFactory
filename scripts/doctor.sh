@@ -25,7 +25,12 @@ else
   pass "no service in restarting state"
 fi
 
-openapi="$(curl -fsS "http://127.0.0.1:8080/openapi.json" || true)"
+openapi=""
+for i in $(seq 1 20); do
+  openapi="$(curl -fsS "http://127.0.0.1:8080/openapi.json" || true)"
+  [[ -n "$openapi" ]] && break
+  sleep 1
+done
 if echo "$openapi" | grep -q '"/v1/jobs"'; then
   pass "openapi includes /v1/jobs"
 else
@@ -37,13 +42,13 @@ else
   fail "openapi missing cancel/artifacts endpoints"
 fi
 
-if $COMPOSE exec -T worker test -s /run/secrets/github_pat; then
-  pass "worker can read /run/secrets/github_pat"
+if $COMPOSE exec -T worker test -s /run/secrets/github_pat.txt; then
+  pass "worker can read /run/secrets/github_pat.txt"
 else
-  fail "worker cannot read /run/secrets/github_pat"
+  fail "worker cannot read /run/secrets/github_pat.txt"
 fi
 
-if $COMPOSE exec -T worker sh -lc 'TOKEN=$(cat /run/secrets/github_pat); curl -fsS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/user >/dev/null'; then
+if $COMPOSE exec -T worker sh -lc 'TOKEN=$(cat /run/secrets/github_pat.txt); curl -fsS -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/user >/dev/null'; then
   pass "github auth succeeded"
 else
   fail "github auth failed"
