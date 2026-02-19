@@ -19,10 +19,11 @@ doctor:
 	./scripts/doctor.sh
 
 test:
-	$(COMPOSE) exec -T api python -B -m py_compile api/main.py
-	$(COMPOSE) exec -T worker python -B -m py_compile worker/main.py
+	$(COMPOSE) exec -T api python -c "import api.main"
+	$(COMPOSE) exec -T worker python -c "import worker.main"
 
 integration:
+	for i in $$(seq 1 20); do curl -fsS http://127.0.0.1:8080/openapi.json >/dev/null && break; sleep 1; done
 	curl -fsS http://127.0.0.1:8080/openapi.json | grep -q '"/v1/jobs"'
 	curl -fsS http://127.0.0.1:8080/openapi.json | grep -q '"/v1/jobs/{job_id}/cancel"'
 	curl -fsS http://127.0.0.1:8080/openapi.json | grep -q '"/v1/jobs/{job_id}/artifacts"'
