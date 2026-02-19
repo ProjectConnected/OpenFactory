@@ -1,0 +1,10 @@
+[Unit]
+Description=Run OpenFactory watchdog every 60 seconds
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=60
+Unit=openfactory-watchdog.service
+
+[Install]
+WantedBy=timers.target

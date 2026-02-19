@@ -1,59 +1,56 @@
 # OpenFactory Runbook
 
-## Canonical locations
+## Canonical paths
 - Repo: `/srv/odyssey/openfactory/OpenFactory`
 - Secrets: `/srv/odyssey/secrets`
-- Workspaces: `/srv/odyssey/workspaces`
-- Data/DB/backups: `/srv/odyssey/data`
+- Data/artifacts: `/srv/odyssey/data/openfactory/jobs`
 
-## Daily operations
-```bash
-cd /srv/odyssey/openfactory/OpenFactory
-make doctor
-make logs
-```
-
-## Start / restart / stop
-```bash
-sudo systemctl restart openfactory.service
-sudo systemctl stop openfactory.service
-sudo systemctl start openfactory.service
-```
-
-Manual compose fallback:
+## Core commands
 ```bash
 cd /srv/odyssey/openfactory/OpenFactory
 make restart
+make doctor
+make test
+make integration
+make smoke
+make logs
 ```
 
-## Health verification
+## Health expectations
+- `make doctor` exits 0
+- `curl -fsS http://127.0.0.1:8080/openapi.json | grep -q '"/v1/jobs"'`
+- worker can read `/run/secrets/github_pat`
+- branch protection required check includes `tests`
+
+## Recovery routine
+1. `make doctor`
+2. If fail, `make restart`
+3. Re-run `make test && make integration`
+4. Run `make smoke`
+5. If still failing: inspect `make logs` and `journalctl -u openfactory.service -n 200`
+
+## Watchdog
+Install/update watchdog units from repo templates:
 ```bash
 cd /srv/odyssey/openfactory/OpenFactory
-make doctor
-curl -fsS http://127.0.0.1:8080/openapi.json | grep -q '"/v1/jobs"'
-curl -fsS http://100.102.56.104:8080/openapi.json | grep -q '"/v1/jobs"'
+make install-watchdog
+systemctl status openfactory-watchdog.timer
 ```
 
-## Logs
-- Service logs: `sudo journalctl -u openfactory.service -n 200 --no-pager`
-- Watchdog logs: `sudo journalctl -u openfactory-watchdog.service -n 200 --no-pager`
-- Container logs: `cd /srv/odyssey/openfactory/OpenFactory && make logs`
+Watchdog action:
+- every 60s check `/openapi.json` has `/v1/jobs`
+- restart `openfactory.service` on failure
 
-## Recovery Routine
-1. `cd /srv/odyssey/openfactory/OpenFactory && make doctor`
-2. If any FAIL: `sudo systemctl restart openfactory.service`
-3. Re-run: `make doctor`
-4. If API path check fails, inspect:
-   - `sudo journalctl -u openfactory.service -n 200 --no-pager`
-   - `docker compose -f docker-compose.pat.yml ps`
-5. If worker token/GitHub auth fails:
-   - `sudo chown root:root /srv/odyssey/secrets/github_pat.txt`
-   - `sudo chmod 600 /srv/odyssey/secrets/github_pat.txt`
-   - `sudo systemctl restart openfactory.service`
-6. If still broken, restore backup:
-   - `/srv/odyssey/data/backups/openfactory-pre-cleanup.tar.gz`
+## Job artifacts
+Per-job output is written under:
+`/srv/odyssey/data/openfactory/jobs/<job_id>/`
 
-## Security notes
-- GitHub PAT read path inside worker container: `/run/secrets/github_pat`
-- Do **not** loosen secret file permissions.
-- Keep `/srv/odyssey/secrets/*.txt` as `root:root` and mode `600`.
+Expected files include:
+- `PREFLIGHT_REPORT.md`
+- `SPEC.md`, `SPEC.json`
+- `ARCHITECTURE.md`
+- `TICKETS/*`
+- `FINAL_SUMMARY.md`
+- `TEST_REPORT.md`
+- `SECURITY_NOTES.md`
+- `logs/*.log`

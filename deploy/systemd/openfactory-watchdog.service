@@ -1,0 +1,9 @@
+[Unit]
+Description=OpenFactory watchdog check
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=openclaw-runner
+WorkingDirectory=/srv/odyssey/openfactory/OpenFactory
+ExecStart=/srv/odyssey/openfactory/OpenFactory/scripts/openfactory_watchdog.sh
