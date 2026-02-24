@@ -1,6 +1,6 @@
 COMPOSE = docker compose -f docker-compose.pat.yml
 
-.PHONY: up down restart logs doctor test integration smoke install-watchdog
+.PHONY: up down restart logs doctor test integration smoke install-watchdog pipeline-docs
 
 up:
 	$(COMPOSE) up -d --build
@@ -33,3 +33,6 @@ smoke:
 
 install-watchdog:
 	./scripts/install_systemd_watchdog.sh
+
+pipeline-docs:
+	python3 ./scripts/generate_pipeline_mmd.py
