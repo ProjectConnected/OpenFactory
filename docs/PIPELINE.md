@@ -1,7 +1,6 @@
-# OpenFactory Autonomous Pipeline (PR1 skeleton)
+# OpenFactory Autonomous Pipeline
 
-This document defines the stage contract for the OpenFactory upgrade.  
-PR1 delivers graph/state/docs only and preserves existing `/v1/jobs` behavior.
+This document defines the active stage contract for OpenFactory while preserving `/v1/jobs` backward compatibility.
 
 ## Required DONE definition
 A run can be marked `done` **only** when:
@@ -15,7 +14,7 @@ A run can be marked `done` **only** when:
 Validate:
 - service/runtime readiness
 - secrets presence
-- coder provider availability (deferred to PR2 wiring)
+- coder provider availability (`gemini_cli` fail-fast readiness)
 - auth/check discovery
 - disk/workspace health
 
@@ -39,13 +38,13 @@ Create:
 
 ### Stage 4: IMPLEMENT_LOOP
 Per ticket (retry <=3):
-- generate patch
-- apply patch
-- run gates
+- generate unified diff patch from coder provider (patch-only)
+- apply patch via executor
+- run gates under deny-by-default command policy
 - commit/push
 
 ### Stage 5: INTEGRATION
-Run constrained integration path and write:
+Run constrained integration path (`docker compose -f /srv/odyssey/openfactory/OpenFactory/docker-compose.pat.yml {up,down,ps,logs}` only) and write:
 - `INTEGRATION_REPORT.md`
 
 ### Stage 6: PR_CI_GATE

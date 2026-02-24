@@ -60,6 +60,18 @@ else
   fail "model config env missing"
 fi
 
+if $COMPOSE exec -T worker sh -lc 'gemini --version >/dev/null 2>&1'; then
+  pass "gemini CLI available"
+else
+  fail "gemini CLI missing in worker (install and authenticate)"
+fi
+
+if $COMPOSE exec -T worker sh -lc 'OUT=$(gemini -p "Reply with exactly: READY" 2>/dev/null || true); echo "$OUT" | grep -qi "READY"'; then
+  pass "gemini non-interactive auth probe passed"
+else
+  fail "gemini non-interactive probe failed (run gemini auth login in worker environment)"
+fi
+
 if grep -RIlE 'gh[pousr]_[A-Za-z0-9_]+' /srv/odyssey/data/openfactory/jobs 2>/dev/null | head -n 1 | grep -q .; then
   fail "potential token leak found in artifacts (run scripts/redact_artifacts.sh)"
 else

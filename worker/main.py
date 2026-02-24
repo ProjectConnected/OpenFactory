@@ -11,6 +11,10 @@ from pathlib import Path
 
 import requests
 
+from worker.coder_provider import CoderRequest, GeminiCliProvider
+from worker.execution_policy import CommandPolicy
+from worker.integration_runner import run_integration
+
 DB_PATH = os.getenv("OPENFACTORY_DB_PATH", "/data/openfactory.db")
 WORKSPACES = Path(os.getenv("OPENFACTORY_WORKSPACES_DIR", "/workspaces"))
 TOKEN_FILE = os.getenv("GITHUB_TOKEN_FILE", "/run/secrets/github_pat.txt")
@@ -36,8 +40,10 @@ ALLOWED = {
     ("git", "commit"),
     ("git", "remote"),
     ("git", "push"),
+    ("git", "apply"),
     ("python3", "-m"),
 }
+POLICY = CommandPolicy(allowed=ALLOWED)
 
 
 def now_iso() -> str:
@@ -106,13 +112,7 @@ def checkpoint(job_id: str, stage: str, extra: dict | None = None):
 
 
 def run(cmd, cwd=None, job_id=None, stage="exec"):
-    if len(cmd) < 2 or (cmd[0], cmd[1]) not in ALLOWED:
-        raise RuntimeError(f"deny_by_default_command_blocked cmd={cmd}")
-    if cmd[0] == "git" and cmd[1] == "push":
-        joined = " ".join(cmd)
-        if re.search(r"\borigin\s+(main|master)\b", joined):
-            raise RuntimeError("blocked_push_to_protected_branch")
-
+    POLICY.validate(cmd)
     r = subprocess.run(cmd, cwd=cwd, check=False, text=True, capture_output=True)
     if job_id:
         append_log(
@@ -167,6 +167,14 @@ def apply_template(dst: Path):
         else:
             out.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(p, out)
+
+
+def apply_unified_patch(job_id: str, ws: Path, patch_text: str):
+    patch_path = ws / "OPENFACTORY_PATCH.diff"
+    patch_path.write_text(patch_text, encoding="utf-8")
+    write_artifact(job_id, "patches/generated.diff", patch_text)
+    run(["git", "apply", "--check", str(patch_path)], cwd=ws, job_id=job_id, stage="patch_check")
+    run(["git", "apply", str(patch_path)], cwd=ws, job_id=job_id, stage="patch_apply")
 
 
 def create_pr_and_wait(owner, repo, branch, title, body, job_id, ws: Path):
@@ -252,8 +260,17 @@ def process(job_id, payload, trace_id):
     run(["git", "checkout", "-b", branch], cwd=ws, job_id=job_id, stage="branch")
     apply_template(ws)
 
-    readme = ws / "README.md"
-    readme.write_text((readme.read_text(encoding="utf-8") if readme.exists() else "") + f"\n\nTask: {task}\n", encoding="utf-8")
+    checkpoint(job_id, "implement_loop", {"step": "patch_generation"})
+    provider = GeminiCliProvider(os.getenv("OPENFACTORY_CODER_PROVIDER_BIN", "gemini"))
+    provider.check_ready()
+    patch = provider.generate_patch(
+        CoderRequest(
+            repo_path=str(ws),
+            ticket=task,
+            context="Apply minimal safe changes. Output unified diff only.",
+        )
+    )
+    apply_unified_patch(job_id, ws, patch)
 
     try:
         run(["python3", "-m", "compileall", "."], cwd=ws, job_id=job_id, stage="compile")
@@ -271,7 +288,16 @@ def process(job_id, payload, trace_id):
     run(["git", "push", "-u", "origin", branch], cwd=ws, job_id=job_id, stage="git_push")
 
     checkpoint(job_id, "integration")
-    write_artifact(job_id, "INTEGRATION_REPORT.md", "# INTEGRATION_REPORT\n\n- template compile attempted\n")
+    integ_lines = ["# INTEGRATION_REPORT", ""]
+    for action in ("ps", "logs"):
+        cp = run_integration(action)
+        integ_lines.append(f"## compose {action}")
+        integ_lines.append(f"- rc: {cp.returncode}")
+        if cp.stdout:
+            integ_lines.append("```\n" + sanitize_text(cp.stdout[:4000]) + "\n```")
+        if cp.stderr:
+            integ_lines.append("```\n" + sanitize_text(cp.stderr[:2000]) + "\n```")
+    write_artifact(job_id, "INTEGRATION_REPORT.md", "\n".join(integ_lines) + "\n")
 
     checkpoint(job_id, "pr_ci_gate")
     pr_url, ci = create_pr_and_wait(owner, repo, branch, "OpenFactory: scaffold + task", task, job_id, ws)
