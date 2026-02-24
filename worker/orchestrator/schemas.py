@@ -1,5 +1,8 @@
+from __future__ import annotations
+
+from typing import Any, Dict, List, Literal
+
 from pydantic import BaseModel, Field
-from typing import List, Dict
 
 
 class AcceptanceCriteria(BaseModel):
@@ -30,3 +33,40 @@ class PipelineConfig(BaseModel):
     required_check_context: str = "tests"
     local_test_cmd: str = "make test"
     local_integration_cmd: str = "make integration"
+
+
+class PipelineCheckpointSchema(BaseModel):
+    stage: Literal[
+        "preflight",
+        "spec",
+        "arch",
+        "tickets",
+        "implement_loop",
+        "integration",
+        "pr_ci_gate",
+        "release",
+    ]
+    ts: str
+    note: str = ""
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class PipelineStateSchema(BaseModel):
+    job_id: str
+    trace_id: str = ""
+    stage: Literal[
+        "preflight",
+        "spec",
+        "arch",
+        "tickets",
+        "implement_loop",
+        "integration",
+        "pr_ci_gate",
+        "release",
+    ] = "preflight"
+    status: str = "running"
+    retries: Dict[str, int] = Field(default_factory=dict)
+    artifacts: List[str] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    checkpoints: List[PipelineCheckpointSchema] = Field(default_factory=list)
+    error: str | None = None
