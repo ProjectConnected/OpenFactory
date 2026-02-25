@@ -51,6 +51,8 @@ services:
       - OPENFACTORY_MODEL_NAME=openrouter/auto
       - OPENFACTORY_MODEL_TEMPERATURE=0
       - OPENFACTORY_MODEL_MAX_TOKENS=4096
+      - HOME=/tmp
+      - GEMINI_CONFIG_DIR=/tmp/.gemini
     volumes:
       - /srv/odyssey/data:/data
       - /srv/odyssey/workspaces:/workspaces
