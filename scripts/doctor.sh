@@ -6,6 +6,7 @@ COMPOSE="docker compose -f ${ROOT_DIR}/docker-compose.pat.yml"
 FAILS=0
 
 pass(){ echo "PASS: $*"; }
+warn(){ echo "WARN: $*"; }
 fail(){ echo "FAIL: $*"; FAILS=$((FAILS+1)); }
 
 api_cid="$($COMPOSE ps -q api 2>/dev/null || true)"
@@ -60,16 +61,32 @@ else
   fail "model config env missing"
 fi
 
-if $COMPOSE exec -T worker sh -lc 'gemini --version >/dev/null 2>&1'; then
-  pass "gemini CLI available"
-else
-  fail "gemini CLI missing in worker (install and authenticate)"
-fi
+MODEL_PROVIDER="$($COMPOSE exec -T worker sh -lc 'printf "%s" "${OPENFACTORY_MODEL_PROVIDER_BASE_URL:-}"' 2>/dev/null || true)"
+MODEL_NAME="$($COMPOSE exec -T worker sh -lc 'printf "%s" "${OPENFACTORY_MODEL_NAME:-}"' 2>/dev/null || true)"
 
-if $COMPOSE exec -T worker sh -lc 'OUT=$(gemini -p "Reply with exactly: READY" 2>/dev/null || true); echo "$OUT" | grep -qi "READY"'; then
-  pass "gemini non-interactive auth probe passed"
+if echo "$MODEL_PROVIDER $MODEL_NAME" | grep -Eqi 'google|gemini|generativelanguage'; then
+  pass "gemini provider/model selected (${MODEL_NAME:-unknown})"
+
+  if $COMPOSE exec -T worker sh -lc 'test -n "${GEMINI_API_KEY:-}"'; then
+    if $COMPOSE exec -T worker sh -lc 'curl -fsS -X POST "https://generativelanguage.googleapis.com/v1beta/models/${OPENFACTORY_MODEL_NAME:-gemini-2.5-flash}:generateContent?key=${GEMINI_API_KEY}" -H "Content-Type: application/json" -d "{\"contents\":[{\"parts\":[{\"text\":\"Reply with READY\"}]}]}" >/dev/null'; then
+      pass "gemini API key non-interactive probe passed"
+    else
+      fail "gemini API probe failed (invalid key/model/quota/network)"
+    fi
+  else
+    if $COMPOSE exec -T worker sh -lc 'gemini --version >/dev/null 2>&1'; then
+      pass "gemini CLI available"
+      if $COMPOSE exec -T worker sh -lc 'OUT=$(gemini -p "Reply with exactly: READY" 2>/dev/null || true); echo "$OUT" | grep -qi "READY"'; then
+        warn "gemini CLI oauth probe passed (interactive auth path; less reliable for unattended automation)"
+      else
+        fail "gemini selected but no non-interactive auth (set GEMINI_API_KEY)"
+      fi
+    else
+      fail "gemini selected but GEMINI_API_KEY missing and gemini CLI unavailable"
+    fi
+  fi
 else
-  fail "gemini non-interactive probe failed (run gemini auth login in worker environment)"
+  pass "gemini auth probe skipped (provider is non-gemini: ${MODEL_PROVIDER:-unset})"
 fi
 
 if grep -RIlE 'gh[pousr]_[A-Za-z0-9_]+' /srv/odyssey/data/openfactory/jobs 2>/dev/null | head -n 1 | grep -q .; then
@@ -78,11 +95,15 @@ else
   pass "artifact logs pass token leak scan"
 fi
 
-ufw_out="$(sudo ufw status numbered || true)"
-if echo "$ufw_out" | grep -q '22/tcp' && echo "$ufw_out" | grep -q '8080/tcp' && ! echo "$ufw_out" | grep -q '8080/tcp.*Anywhere'; then
-  pass "ufw has scoped 22/tcp and 8080/tcp rules"
+if sudo -n true >/dev/null 2>&1; then
+  ufw_out="$(sudo ufw status numbered || true)"
+  if echo "$ufw_out" | grep -q '22/tcp' && echo "$ufw_out" | grep -q '8080/tcp' && ! echo "$ufw_out" | grep -q '8080/tcp.*Anywhere'; then
+    pass "ufw has scoped 22/tcp and 8080/tcp rules"
+  else
+    fail "ufw rules are missing/overbroad for 22 or 8080"
+  fi
 else
-  fail "ufw rules are missing/overbroad for 22 or 8080"
+  warn "skipping ufw check (sudo non-interactive not available)"
 fi
 
 if [[ "$FAILS" -gt 0 ]]; then
