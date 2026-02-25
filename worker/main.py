@@ -11,9 +11,9 @@ from pathlib import Path
 
 import requests
 
-from worker.coder_provider import CoderRequest, GeminiCliProvider
-from worker.execution_policy import CommandPolicy
-from worker.integration_runner import run_integration
+from coder_provider import CoderRequest, GeminiCliProvider
+from execution_policy import CommandPolicy
+from integration_runner import run_integration
 
 DB_PATH = os.getenv("OPENFACTORY_DB_PATH", "/data/openfactory.db")
 WORKSPACES = Path(os.getenv("OPENFACTORY_WORKSPACES_DIR", "/workspaces"))
