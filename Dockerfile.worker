@@ -1,7 +1,11 @@
 FROM python:3.12-slim
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates openssh-client curl && rm -rf /var/lib/apt/lists/*
+ARG HOST_UID=1001
+ARG HOST_GID=1001
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates openssh-client curl nodejs npm nodejs npm && rm -rf /var/lib/apt/lists/*
+RUN groupadd -g ${HOST_GID} openfactory || true && useradd -m -u ${HOST_UID} -g ${HOST_GID} -s /bin/bash openfactory || true
 WORKDIR /app
 COPY requirements-worker.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN npm install -g @google/gemini-cli @qwen-code/qwen-code
 COPY worker /app/worker
 CMD ["python", "-u", "worker/main.py"]

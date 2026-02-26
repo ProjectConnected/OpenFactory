@@ -26,6 +26,10 @@ print(json.loads('''${submit_resp}''')['id'])
 PY
 )
 
+artifact_dir="/srv/odyssey/data/openfactory/jobs/${job_id}"
+mkdir -p "$artifact_dir"
+echo "${submit_resp}" > "${artifact_dir}/SMOKE_SUBMIT_RESPONSE.json"
+
 echo "smoke_job_id=${job_id}"
 
 start_ts=$(date +%s)
@@ -33,10 +37,12 @@ while true; do
   now_ts=$(date +%s)
   if (( now_ts - start_ts > TIMEOUT_SEC )); then
     echo "FAIL: timeout waiting for job terminal state"
+    echo "STATUS=timeout" > "${artifact_dir}/SMOKE_EVIDENCE.txt"
     exit 2
   fi
 
   resp=$(curl -fsS "${API_URL}/v1/jobs/${job_id}" -H "X-OpenFactory-Key: ${api_key}")
+  echo "${resp}" > "${artifact_dir}/SMOKE_LAST_STATUS.json"
   status=$(python3 - <<PY
 import json
 j=json.loads('''${resp}''')
@@ -61,16 +67,31 @@ PY
   case "$status" in
     done)
       if [[ -n "$pr_url" && "$ci" == "green" ]]; then
+        cat > "${artifact_dir}/SMOKE_EVIDENCE.txt" <<EOF
+STATUS=done
+PR_URL=${pr_url}
+CI_CONCLUSION=success
+EOF
         echo "PASS: deterministic smoke complete"
         echo "PR_URL=${pr_url}"
         echo "CI_CONCLUSION=success"
         exit 0
       fi
       echo "FAIL: done but missing green ci/pr_url"
+      cat > "${artifact_dir}/SMOKE_EVIDENCE.txt" <<EOF
+STATUS=done_incomplete
+PR_URL=${pr_url}
+CI_CONCLUSION=${ci}
+EOF
       exit 3
       ;;
     failed|ci_failed|cancelled)
       echo "FAIL: terminal failure status=${status}"
+      cat > "${artifact_dir}/SMOKE_EVIDENCE.txt" <<EOF
+STATUS=${status}
+PR_URL=${pr_url}
+CI_CONCLUSION=${ci}
+EOF
       exit 4
       ;;
   esac
