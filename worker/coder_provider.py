@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import urllib.error
 import urllib.parse
@@ -34,13 +35,14 @@ def _validate_patch(patch: str, err_code: str) -> str:
 
 
 class CliPatchProvider:
-    def __init__(self, binary: str = "gemini", prompt_flag: str = "-p") -> None:
+    def __init__(self, binary: str = "gemini", prompt_flag: str = "-p", extra_args: str = "") -> None:
         self.binary = binary
         self.prompt_flag = prompt_flag
+        self.extra_args = shlex.split(extra_args or "")
 
     def check_ready(self) -> None:
         try:
-            v = subprocess.run([self.binary, "--version"], check=False, capture_output=True, text=True)
+            v = subprocess.run([self.binary, *self.extra_args, "--version"], check=False, capture_output=True, text=True)
         except FileNotFoundError as e:
             raise RuntimeError(f"cli_missing install {self.binary} and authenticate") from e
         if v.returncode != 0:
@@ -48,7 +50,7 @@ class CliPatchProvider:
 
         probe_prompt = "Reply with exactly: READY"
         probe = subprocess.run(
-            [self.binary, self.prompt_flag, probe_prompt],
+            [self.binary, *self.extra_args, self.prompt_flag, probe_prompt],
             check=False,
             capture_output=True,
             text=True,
@@ -61,7 +63,7 @@ class CliPatchProvider:
 
     def generate_patch(self, req: CoderRequest) -> str:
         cp = subprocess.run(
-            [self.binary, self.prompt_flag, _build_prompt(req)],
+            [self.binary, *self.extra_args, self.prompt_flag, _build_prompt(req)],
             check=False,
             capture_output=True,
             text=True,

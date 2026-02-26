@@ -276,6 +276,7 @@ def process(job_id, payload, trace_id):
     fallback = os.getenv("OPENFACTORY_CODER_FALLBACK", "gemini_api").strip().lower()
     primary_bin = os.getenv("OPENFACTORY_CODER_PROVIDER_BIN", "gemini")
     primary_flag = os.getenv("OPENFACTORY_CODER_PROMPT_FLAG", "-p")
+    primary_args = os.getenv("OPENFACTORY_CODER_PROVIDER_ARGS", "")
     gemini_model = os.getenv("OPENFACTORY_GEMINI_MODEL", "gemini-2.5-pro")
 
     patch = ""
@@ -283,7 +284,7 @@ def process(job_id, payload, trace_id):
     primary_err = ""
     try:
         if primary in ("qwen_cli", "gemini_cli", "cli"):
-            provider = CliPatchProvider(binary=primary_bin, prompt_flag=primary_flag)
+            provider = CliPatchProvider(binary=primary_bin, prompt_flag=primary_flag, extra_args=primary_args)
             provider.check_ready()
             patch = provider.generate_patch(req)
             provider_used = f"cli:{primary_bin}"
@@ -305,7 +306,7 @@ def process(job_id, payload, trace_id):
             patch = provider.generate_patch(req)
             provider_used = f"gemini_api_fallback:{gemini_model}"
         elif fallback in ("qwen_cli", "gemini_cli", "cli"):
-            provider = CliPatchProvider(binary=primary_bin, prompt_flag=primary_flag)
+            provider = CliPatchProvider(binary=primary_bin, prompt_flag=primary_flag, extra_args=primary_args)
             provider.check_ready()
             patch = provider.generate_patch(req)
             provider_used = f"cli_fallback:{primary_bin}"

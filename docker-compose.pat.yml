@@ -60,6 +60,7 @@ services:
       - OPENFACTORY_CODER_PRIMARY=qwen_cli
       - OPENFACTORY_CODER_FALLBACK=gemini_api
       - OPENFACTORY_CODER_PROVIDER_BIN=qwen
+      - OPENFACTORY_CODER_PROVIDER_ARGS=--auth-type qwen-oauth
       - OPENFACTORY_CODER_PROMPT_FLAG=-p
       - OPENFACTORY_GEMINI_MODEL=gemini-2.5-pro
       - GEMINI_API_KEY_FILE=/run/secrets/gemini_api_key.txt
