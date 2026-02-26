@@ -3,6 +3,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 WORKDIR /app
 COPY requirements-worker.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
-RUN npm install -g @google/gemini-cli
+RUN npm install -g @google/gemini-cli @qwen-code/qwen-code
 COPY worker /app/worker
 CMD ["python", "-u", "worker/main.py"]

@@ -12,11 +12,11 @@ from pathlib import Path
 import requests
 
 try:
-    from .coder_provider import CoderRequest, GeminiCliProvider
+    from .coder_provider import CliPatchProvider, CoderRequest, GeminiApiProvider
     from .execution_policy import CommandPolicy
     from .integration_runner import run_integration
 except ImportError:
-    from coder_provider import CoderRequest, GeminiCliProvider
+    from coder_provider import CliPatchProvider, CoderRequest, GeminiApiProvider
     from execution_policy import CommandPolicy
     from integration_runner import run_integration
 
@@ -266,15 +266,53 @@ def process(job_id, payload, trace_id):
     apply_template(ws)
 
     checkpoint(job_id, "implement_loop", {"step": "patch_generation"})
-    provider = GeminiCliProvider(os.getenv("OPENFACTORY_CODER_PROVIDER_BIN", "gemini"))
-    provider.check_ready()
-    patch = provider.generate_patch(
-        CoderRequest(
-            repo_path=str(ws),
-            ticket=task,
-            context="Apply minimal safe changes. Output unified diff only.",
-        )
+    req = CoderRequest(
+        repo_path=str(ws),
+        ticket=task,
+        context="Apply minimal safe changes. Output unified diff only.",
     )
+
+    primary = os.getenv("OPENFACTORY_CODER_PRIMARY", "gemini_cli").strip().lower()
+    fallback = os.getenv("OPENFACTORY_CODER_FALLBACK", "gemini_api").strip().lower()
+    primary_bin = os.getenv("OPENFACTORY_CODER_PROVIDER_BIN", "gemini")
+    primary_flag = os.getenv("OPENFACTORY_CODER_PROMPT_FLAG", "-p")
+    gemini_model = os.getenv("OPENFACTORY_GEMINI_MODEL", "gemini-2.5-pro")
+
+    patch = ""
+    provider_used = ""
+    primary_err = ""
+    try:
+        if primary in ("qwen_cli", "gemini_cli", "cli"):
+            provider = CliPatchProvider(binary=primary_bin, prompt_flag=primary_flag)
+            provider.check_ready()
+            patch = provider.generate_patch(req)
+            provider_used = f"cli:{primary_bin}"
+        elif primary == "gemini_api":
+            provider = GeminiApiProvider(model=gemini_model)
+            provider.check_ready()
+            patch = provider.generate_patch(req)
+            provider_used = f"gemini_api:{gemini_model}"
+        else:
+            raise RuntimeError(f"unsupported_primary_provider:{primary}")
+    except Exception as e:
+        primary_err = str(e)
+        append_log(job_id, "logs/provider_primary_error.log", primary_err + "\n")
+        if fallback in ("", "none", "off"):
+            raise
+        if fallback == "gemini_api":
+            provider = GeminiApiProvider(model=gemini_model)
+            provider.check_ready()
+            patch = provider.generate_patch(req)
+            provider_used = f"gemini_api_fallback:{gemini_model}"
+        elif fallback in ("qwen_cli", "gemini_cli", "cli"):
+            provider = CliPatchProvider(binary=primary_bin, prompt_flag=primary_flag)
+            provider.check_ready()
+            patch = provider.generate_patch(req)
+            provider_used = f"cli_fallback:{primary_bin}"
+        else:
+            raise RuntimeError(f"unsupported_fallback_provider:{fallback}; primary_error={primary_err}")
+
+    append_log(job_id, "logs/provider_selected.log", provider_used + "\n")
     apply_unified_patch(job_id, ws, patch)
 
     try:
